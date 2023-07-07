@@ -1,18 +1,7 @@
 ----- INT Magnet Recipe Pool Query -----
---- FROM original queries by GAMP AND with modifications/additions made by @Hannah Hernalin ----
---- Updated as of 04 JUL 2023 ---
-
 
 
 -------------------- COSTS & SKU COSTS CTEs --------------------
-
-/* 
-IMPORTANT NOTE: before running the query, update the HelloFresh weeks in the 2 CTEs:
-    a. sku_cost_CPS 
-    b. last_sku_cost_remps 
-Depending on the preferred weeks. EX: If the data to extract is for Q2 of 2023 then update the weeks to 2023-W13 and 2023-W26. 
-*/
-
 
 WITH sku_cost_CPS AS (
     SELECT market
@@ -24,8 +13,8 @@ WITH sku_cost_CPS AS (
         ON sku.id=sp.culinary_sku_id
     WHERE  sku.market IN ('dkse','es','gb','ie','it','beneluxfr')
         AND sp.distribution_center IN ('SK','SP','GR','IE','IT','DH')
-        AND sp.hellofresh_week >= '2023-W27' --- update to the preferred start week
-        AND sp.hellofresh_week <= '2023-W39' --- update to the preferred end week
+        AND sp.hellofresh_week >= '2023-W27'
+        AND sp.hellofresh_week <= '2023-W39'
     GROUP BY 1,2,3
     )
 
@@ -36,10 +25,7 @@ WITH sku_cost_CPS AS (
         FROM materialized_views.procurement_services_staticprices AS sp
         LEFT JOIN materialized_views.procurement_services_culinarysku AS sku
             ON sku.id=sp.culinary_sku_id
-        WHERE  sku.market IN ('ca') 
-            AND sp.hellofresh_week>='2023-W27' --- update to the preferred start week
-            AND sp.hellofresh_week<='2023-W39' --- update to the preferred end week
-            --AND sp.distribution_center='OA'
+        WHERE  sku.market IN ('ca') AND sp.hellofresh_week>='2023-W27' AND sp.hellofresh_week<='2023-W39' --AND sp.distribution_center='OA'
         GROUP BY 1,2,3
     )
 
@@ -1007,21 +993,10 @@ WHERE o=1)
             , sc2p.skucount
             , i.inactiveskus
             , i.inactiveskuname
-            --, r.cost1p
             , r.cost2p
-            --, r.cost3p
             , r.cost4p
-            --, r.pricemissingskus
-            --, r.boxitem
             , u.last_used AS lastused
-            --, u.last_used_running_week
-            --, u.next_used AS nextused
-            --, u.next_used_running_week
             , CASE WHEN u.absolute_last_used IS NULL THEN '' ELSE u.absolute_last_used END AS absolutelastused
-            --, CASE WHEN u.absolute_last_used_running_week IS NULL THEN -1 ELSE u.absolute_last_used_running_week END AS absolutelastusedrunning
-            --, u.lastnextuseddiff
-            --, coalesce(cast(u.is_newrecipe AS integer),1) AS isnewrecipe
-            --, coalesce(cast(u.is_newscheduled AS integer),0) AS isnewscheduled
             , r.is_default AS isdefault
             , r.o
             , r.updated_at AS updated_at
@@ -1048,8 +1023,6 @@ WHERE o=1)
     WHERE lower(r.status) NOT  IN ('inactive','rejected')
     ORDER BY 3
 )
-
-
 
 
 , all_recipes_ES AS (
@@ -1098,14 +1071,10 @@ SELECT r.id AS uuid
        , sc2p.skucount
        , i.inactiveskus
        , i.inactiveskuname
-       --,round(p.cost1p,2) AS cost1p
        ,round(p.cost2p,2) AS cost2p
-       --,round(p.cost3p,2) AS cost3p
        ,round(p.cost4p,2) AS cost4p
      ,u.last_used AS lastused
      ,CASE WHEN u.absolute_last_used IS NULL THEN '' ELSE u.absolute_last_used END AS absolutelastused
-     --,coalesce(cast(u.is_newrecipe AS integer),1) AS isnewrecipe
-     --,coalesce(cast(u.is_newscheduled AS integer),0) AS isnewscheduled
      ,r.is_default AS isdefault
      ,DENSE_RANK() OVER (PARTITION BY r.recipe_code, r.market ORDER BY r.version  DESC) AS o
      ,r.updated_at AS updated_at --its NOT  unix timestamp
@@ -1125,8 +1094,6 @@ LEFT JOIN (SELECT * FROM steps_CPS WHERE market='es') AS steps ON steps.recipe_i
 LEFT JOIN allergens AS a ON r.unique_recipe_code=a.unique_recipe_code
 WHERE lower(r.status) IN ('ready for menu planning')
     AND  r.market='es'
-    --AND length(r.primary_protein)>0
-    --AND r.primary_protein <>'N/A'
     AND  p.cost2p >0
     AND  p.cost4p >0
 ) temp
@@ -1200,7 +1167,6 @@ SELECT  r.id as uuid
 FROM recipe_consolidated_CPS AS r
 LEFT JOIN (SELECT * FROM recipe_usage_CPS WHERE region_code = 'fr' AND market = 'fr') AS u ON  u.recipe_code = r.recipe_code
 LEFT JOIN (SELECT * FROM nutrition_CPS WHERE market = 'fr' AND segment = 'FR') AS n ON n.recipe_id = r.id
---LEFT JOIN scores s ON s.mainrecipecode=r.mainrecipecode AND s.country=r.country
 LEFT JOIN picklists_FR AS p ON p.unique_recipe_code=r.unique_recipe_code
 LEFT JOIN inactiveskus_FR AS i ON p.unique_recipe_code = i.unique_recipe_code --and ON p.skucode = i.skucode
 LEFT JOIN skucount_2p_FR AS sc2p ON sc2p.unique_recipe_code=r.unique_recipe_code
@@ -1213,9 +1179,6 @@ WHERE LOWER(r.status) IN ('ready for menu planning','planned')
             ELSE TRUE  end
     AND r.unique_recipe_code NOT LIKE 'K%'
     AND r.unique_recipe_code NOT LIKE 'T%'
-    --AND LENGTH(r.primary_protein)>0
-    --AND r.primary_protein <>'N/A'
-    --AND r.primary_protein IS NOT  NULL
     AND p.cost2p >0
     AND p.cost3p >0
     AND p.cost4p >0
@@ -1289,7 +1252,6 @@ WHERE LOWER(r.status) IN ('ready for menu planning','planned')
             , a.allergen_change
             , a.allergen_updated_at
         FROM materialized_views.isa_services_recipe_consolidated AS r
---FROM recipe_consolidated_CPS AS r
         LEFT JOIN (SELECT * FROM recipe_usage_CPS WHERE market = 'gb') AS u ON u.recipe_code = r.recipe_code
         LEFT JOIN (SELECT * FROM nutrition_CPS WHERE market='gb' AND country='GB') AS n ON n.recipe_id = r.id
         LEFT JOIN picklists_GB AS p ON p.unique_recipe_code=r.unique_recipe_code
@@ -1298,13 +1260,8 @@ WHERE LOWER(r.status) IN ('ready for menu planning','planned')
         LEFT JOIN (SELECT * FROM steps_CPS WHERE market='gb') AS steps ON steps.unique_recipe_code = r.unique_recipe_code
         LEFT JOIN allergens AS a ON r.unique_recipe_code=a.unique_recipe_code
         WHERE lower (r.status) IN ('ready for menu planning', 'final cook', 'external testing', 'in development')
---AND p.cost2p >1.5
---AND p.cost3p >0
---AND p.cost4p >0
         AND LOWER (r.title) NOT LIKE '%not use%' AND lower (r.title) NOT LIKE '%wrong%' AND lower (r.title) NOT LIKE '%test%' AND lower (r.title) NOT LIKE '%brexit%'
         AND r.primary_protein <>'White Fish - Coley'
---AND length (r.primary_protein)>0
---AND r.primary_protein <>'N/A'
         AND UPPER(r.unique_recipe_code) NOT LIKE '%MOD%'
         AND UPPER(r.unique_recipe_code) NOT LIKE 'GC%'
         AND LOWER(r.unique_recipe_code) NOT LIKE '%test%'
@@ -1392,8 +1349,6 @@ LEFT JOIN (SELECT * FROM steps_CPS WHERE market='ie') AS steps ON steps.recipe_i
 LEFT JOIN allergens AS a ON r.unique_recipe_code=a.unique_recipe_code
 WHERE lower(r.status) IN ('ready for menu planning', 'in development')
     AND  r.market='ie'
-    --AND length(r.primary_protein)>0
-    --AND r.primary_protein <>'N/A'
     AND p.cost2p >0
     AND p.cost4p >0
 ) temp
@@ -1468,8 +1423,6 @@ LEFT JOIN (SELECT * FROM steps_CPS WHERE market='it') AS steps ON steps.recipe_i
 LEFT JOIN allergens AS a ON r.unique_recipe_code=a.unique_recipe_code
 WHERE LOWER(r.status) IN ('ready for menu planning', 'in development')
     AND r.market='it'
-    --AND LENGTH(r.primary_protein)>0
-    --AND r.primary_protein <>'N/A'
     AND p.cost2p >0
     AND p.cost4p >0
     AND LOWER(r.recipe_type) <> 'add-ons'
@@ -1478,18 +1431,25 @@ WHERE isdefault = 1
 )
 
 
-SELECT DISTINCT * FROM all_recipes_CA
-UNION ALL
-SELECT DISTINCT * FROM all_recipes_DACH
-UNION ALL
-SELECT DISTINCT * FROM all_recipes_DKSE
-UNION ALL
-SELECT DISTINCT * FROM all_recipes_ES
-UNION ALL
-SELECT DISTINCT * FROM all_recipes_FR
-UNION ALL
-SELECT DISTINCT * FROM all_recipes_GB
-UNION ALL
-SELECT DISTINCT * FROM all_recipes_IE
-UNION ALL
-SELECT DISTINCT * FROM all_recipes_IT
+, int_recipepool AS (SELECT DISTINCT * FROM all_recipes_CA
+                      UNION ALL
+                      SELECT DISTINCT * FROM all_recipes_DACH
+                      UNION ALL
+                      SELECT DISTINCT * FROM all_recipes_DKSE
+                      UNION ALL
+                      SELECT DISTINCT * FROM all_recipes_ES
+                      UNION ALL
+                      SELECT DISTINCT * FROM all_recipes_FR
+                      UNION ALL
+                      SELECT DISTINCT * FROM all_recipes_GB
+                      UNION ALL
+                      SELECT DISTINCT * FROM all_recipes_IE
+                      UNION ALL
+                      SELECT DISTINCT * FROM all_recipes_IT)
+
+SELECT * FROM int_recipepool
+
+
+
+---FROM original queries by GAMP AND with modifications/additions made by @Hannah Hernalin----
+--- Updated as of 7 JUL 2023 ---
