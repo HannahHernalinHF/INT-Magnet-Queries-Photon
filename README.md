@@ -1,5 +1,6 @@
 # INT-Magnet-Queries-Photon
 The queries involved extracting the data in Databricks Photon for the INT Magnet Dashboard. 
+Link to Dashboard: https://tableau.hellofresh.io/#/views/INTMagnet/Home?:iid=1
 
 1. INTMagnet_RecipePool_Query_db.sql
 Executed In: Custom SQL Query in Tableau Prep Builder connected to Databricks Photon.
@@ -10,14 +11,17 @@ Columns: {uuid,country,uniquerecipecode,code,version,status,title,subtitle,prima
 
 2. MissingStaticPrice_Query_db.sql
 Executed In: Custom SQL Query in Tableau Prep Builder connected to Databricks Photon.
-This query is used to extract the recipes with missing SKUs' static prices for the static-price error.
+This query extracts the recipes with missing SKUs' static prices for the 'static-price' error.
 Columns:
 {market,hellofresh_week,recipe_status,unique_recipe_code,title,is_default,sku_status,price,sku_code,sku_name}
 
 3. ANZ_InactiveSKUs_Query_db.sql
-Executed In: CDP Impala
-This query is used to extract the inactive SKUs of the 3 ANZ markets: HelloFresh - AU, HelloFresh - NZ, and EveryPlate - AU
-for the purpose of the inactive-sku error.
+Executed In: Databricks Photon
+This query is used to extract the inactive SKUs of the 3 ANZ markets:
+     a. HelloFresh - AU
+     b. HelloFresh - NZ
+     c. EveryPlate - AU
+*** for the purpose of the 'inactive-sku' error.
 
 Columns:
   a. iskucodes - stands for inactive SKU codes
