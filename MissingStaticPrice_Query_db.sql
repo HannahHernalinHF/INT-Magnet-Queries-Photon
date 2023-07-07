@@ -1,5 +1,10 @@
 ----- Missing Static Pricing -----
 
+/* 
+IMPORTANT NOTE: before running the query, update the HelloFresh weeks found in the last lines
+depending on the preferred weeks EX: If the data to extract is for Q2 of 2023 then update the weeks to 2023-W13 and 2023-W26. 
+*/
+
 WITH isa_recipe_picklist_staticprices AS (
 SELECT *,
 cast(regexp_replace(regexp_replace(unique_recipe_code, recipe_code, ''),'-','') as int) version
@@ -286,5 +291,8 @@ FROM recipepool_ck
 UNION ALL
 SELECT *
 FROM recipepool_bnl
-) all_data where
-hellofresh_week > '2023-W26' AND hellofresh_week < '2023-W39' AND price = 'na' AND sku_status = 'Active' --- Update the hellofresh week depending on the Quarter
+) all_data 
+where hellofresh_week > '2023-W26' --- update to the preferred start week
+    AND hellofresh_week < '2023-W39' --- update to the preferred end week
+    AND price = 'na' 
+    AND sku_status = 'Active'
