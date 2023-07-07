@@ -1,9 +1,18 @@
 ----- INT Magnet Recipe Pool Query -----
----FROM original queries by GAMP AND with modifications/additions made by @Hannah Hernalin----
---- Updated as of 19 JUN 2023 ---
+--- FROM original queries by GAMP AND with modifications/additions made by @Hannah Hernalin ----
+--- Updated as of 04 JUL 2023 ---
+
 
 
 -------------------- COSTS & SKU COSTS CTEs --------------------
+
+/* 
+IMPORTANT NOTE: before running the query, update the HelloFresh weeks in the 2 CTEs:
+    a. sku_cost_CPS 
+    b. last_sku_cost_remps 
+Depending on the preferred weeks. EX: If the data to extract is for Q2 of 2023 then update the weeks to 2023-W13 and 2023-W26. 
+*/
+
 
 WITH sku_cost_CPS AS (
     SELECT market
@@ -15,8 +24,8 @@ WITH sku_cost_CPS AS (
         ON sku.id=sp.culinary_sku_id
     WHERE  sku.market IN ('dkse','es','gb','ie','it','beneluxfr')
         AND sp.distribution_center IN ('SK','SP','GR','IE','IT','DH')
-        AND sp.hellofresh_week >= '2023-W13'
-        AND sp.hellofresh_week <= '2023-W26'
+        AND sp.hellofresh_week >= '2023-W27' --- update to the preferred start week
+        AND sp.hellofresh_week <= '2023-W39' --- update to the preferred end week
     GROUP BY 1,2,3
     )
 
@@ -27,7 +36,10 @@ WITH sku_cost_CPS AS (
         FROM materialized_views.procurement_services_staticprices AS sp
         LEFT JOIN materialized_views.procurement_services_culinarysku AS sku
             ON sku.id=sp.culinary_sku_id
-        WHERE  sku.market IN ('ca') AND sp.hellofresh_week>='2023-W13' AND sp.hellofresh_week<='2023-W26' --AND sp.distribution_center='OA'
+        WHERE  sku.market IN ('ca') 
+            AND sp.hellofresh_week>='2023-W27' --- update to the preferred start week
+            AND sp.hellofresh_week<='2023-W39' --- update to the preferred end week
+            --AND sp.distribution_center='OA'
         GROUP BY 1,2,3
     )
 
@@ -975,10 +987,10 @@ WHERE o=1)
             , CASE WHEN r.dish_type IS NULL OR r.dish_type = '' THEN 'not available' ELSE r.dish_type END AS dishtype
             , CASE WHEN r.hands_on_time ='' OR r.hands_on_time IS NULL THEN cast(99 AS FLOAT)
                 ELSE cast(r.hands_on_time AS FLOAT) END AS handsontime
-            , CASE WHEN r.hands_on_time_max ='' OR r.hands_on_time_max IS NULL THEN cast(r.hands_on_time AS FLOAT)
+            , CASE WHEN r.hands_on_time_max ='' OR CAST(r.hands_off_time_max AS FLOAT)=0 OR r.hands_on_time_max IS NULL THEN cast(r.hands_on_time AS FLOAT)
                  ELSE cast(r.hands_on_time_max AS FLOAT) end
                   +
-              CASE WHEN r.hands_off_time_max ='' OR r.hands_off_time_max IS NULL THEN cast(r.hands_off_time AS FLOAT)
+              CASE WHEN r.hands_off_time_max ='' OR CAST(r.hands_off_time_max AS FLOAT)=0 OR r.hands_off_time_max IS NULL THEN cast(r.hands_off_time AS FLOAT)
                  ELSE cast(r.hands_off_time_max AS FLOAT) end
                   AS totaltime
             , r.tags AS hqtag --only a filler
@@ -1049,7 +1061,8 @@ SELECT r.id AS uuid
        ,r.version
        ,r.status
        ,regexp_replace(r.title, '\t|\n', '') AS title
-       ,concat(regexp_replace(r.title, '\t|\n', ''), coalesce(regexp_replace(r.subtitle, '\t|\n', ''),'') ,coalesce (r.primary_protein,''),coalesce(r.primary_starch,''),coalesce(r.cuisine,''), coalesce(r.dish_type,''), coalesce(r.primary_vegetable,'')) AS subtitle
+       ,coalesce(regexp_replace(r.subtitle, '\t|\n', ''),'') AS subtitle
+       --,concat(regexp_replace(r.title, '\t|\n', ''), coalesce(regexp_replace(r.subtitle, '\t|\n', ''),'') ,coalesce (r.primary_protein,''),coalesce(r.primary_starch,''),coalesce(r.cuisine,''), coalesce(r.dish_type,''), coalesce(r.primary_vegetable,'')) AS subtitle
        ,CASE WHEN r.primary_protein IS NULL OR r.primary_protein = "" THEN 'not available' ELSE r.primary_protein END AS primaryprotein
        ,r.main_protein AS mainprotein
        ,r.protein_cut AS proteincut
@@ -1067,10 +1080,10 @@ SELECT r.id AS uuid
        ,CASE WHEN r.dish_type IS NULL OR r.dish_type = '' THEN 'not available' ELSE r.dish_type END AS dishtype
        ,CASE WHEN r.hands_on_time ="" OR r.hands_on_time IS NULL THEN cast(99 AS FLOAT)
              ELSE cast(r.hands_on_time AS FLOAT) END AS handsontime
-       ,CASE WHEN r.hands_on_time_max ="" OR r.hands_on_time_max IS NULL THEN cast(r.hands_on_time AS FLOAT)
+       ,CASE WHEN r.hands_on_time_max ="" OR CAST(r.hands_off_time_max AS FLOAT)=0 OR r.hands_on_time_max IS NULL THEN cast(r.hands_on_time AS FLOAT)
              ELSE cast(r.hands_on_time_max AS FLOAT) end
               +
-        CASE WHEN r.hands_off_time_max ="" OR r.hands_off_time_max IS NULL THEN cast(r.hands_off_time AS FLOAT)
+        CASE WHEN r.hands_off_time_max ="" OR CAST(r.hands_off_time_max AS FLOAT)=0 OR r.hands_off_time_max IS NULL THEN cast(r.hands_off_time AS FLOAT)
              ELSE cast(r.hands_off_time_max AS FLOAT) end
               AS totaltime
        ,r.tags AS hqtag --only a filler
@@ -1149,10 +1162,10 @@ SELECT  r.id as uuid
        ,CASE WHEN r.dish_type IS NULL OR r.dish_type = '' THEN 'not available' ELSE r.dish_type END AS dishtype
        ,CASE WHEN r.hands_on_time ="" OR r.hands_on_time IS NULL THEN CAST(99 AS FLOAT)
              ELSE CAST(r.hands_on_time AS FLOAT) END AS handsontime
-       ,CASE WHEN r.hands_on_time_max ="" OR r.hands_on_time_max IS NULL THEN CAST(r.hands_on_time AS FLOAT)
+       ,CASE WHEN r.hands_on_time_max ="" OR CAST(r.hands_off_time_max AS FLOAT)=0 OR r.hands_on_time_max IS NULL THEN CAST(r.hands_on_time AS FLOAT)
              ELSE CAST(r.hands_on_time_max AS FLOAT) END
               +
-        CASE WHEN r.hands_off_time_max ="" OR r.hands_off_time_max IS NULL THEN CAST(r.hands_off_time AS FLOAT)
+        CASE WHEN r.hands_off_time_max ="" OR CAST(r.hands_off_time_max AS FLOAT)=0 OR r.hands_off_time_max IS NULL THEN CAST(r.hands_off_time AS FLOAT)
              ELSE CAST(r.hands_off_time_max AS FLOAT)
          END AS totaltime
        ,r.tags AS hqtag
@@ -1335,10 +1348,10 @@ SELECT r.id AS uuid
        ,CASE WHEN r.dish_type IS NULL OR r.dish_type = '' THEN 'not available' ELSE r.dish_type END AS dishtype
        ,CASE WHEN r.hands_on_time ="" OR r.hands_on_time IS NULL THEN cast(99 AS FLOAT)
              ELSE cast(r.hands_on_time AS FLOAT) END AS handsontime
-       ,CASE WHEN r.hands_on_time_max ="" OR r.hands_on_time_max IS NULL THEN cast(r.hands_on_time AS FLOAT)
+       ,CASE WHEN r.hands_on_time_max ="" OR CAST(r.hands_off_time_max AS FLOAT)=0  OR r.hands_on_time_max IS NULL THEN cast(r.hands_on_time AS FLOAT)
              ELSE cast(r.hands_on_time_max AS FLOAT) end
               +
-        CASE WHEN r.hands_off_time_max ="" OR r.hands_off_time_max IS NULL THEN cast(r.hands_off_time AS FLOAT)
+        CASE WHEN r.hands_off_time_max ="" OR CAST(r.hands_off_time_max AS FLOAT)=0  OR r.hands_off_time_max IS NULL THEN cast(r.hands_off_time AS FLOAT)
              ELSE cast(r.hands_off_time_max AS FLOAT) end
               AS totaltime
        ,r.tags AS hqtag --only a filler
@@ -1414,10 +1427,10 @@ SELECT r.id AS uuid
        ,CASE WHEN r.dish_type IS NULL OR r.dish_type = '' THEN 'not available' ELSE r.dish_type END AS dishtype
        ,CASE WHEN r.hands_on_time_max ="" OR r.hands_on_time_max IS NULL THEN cast(99 AS FLOAT)
              ELSE cast(r.hands_on_time_max AS FLOAT) END AS handsontime
-       ,CASE WHEN r.hands_on_time_max ="" OR r.hands_on_time_max IS NULL THEN cast(99 AS FLOAT)
+       ,CASE WHEN r.hands_on_time_max ="" OR CAST(r.hands_off_time_max AS FLOAT)=0  OR r.hands_on_time_max IS NULL THEN cast(99 AS FLOAT)
              ELSE cast(r.hands_on_time_max AS FLOAT) END
               +
-        CASE WHEN r.hands_off_time_max ="" OR r.hands_off_time_max IS NULL THEN cast(99 AS FLOAT)
+        CASE WHEN r.hands_off_time_max ="" OR CAST(r.hands_off_time_max AS FLOAT)=0  OR r.hands_off_time_max IS NULL THEN cast(99 AS FLOAT)
              ELSE cast(r.hands_off_time_max AS FLOAT) END AS totaltime
        ,r.tags AS hqtag --only a filler
        ,r.tags AS tag
@@ -1480,4 +1493,3 @@ UNION ALL
 SELECT DISTINCT * FROM all_recipes_IE
 UNION ALL
 SELECT DISTINCT * FROM all_recipes_IT
-
