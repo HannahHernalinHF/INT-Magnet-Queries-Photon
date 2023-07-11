@@ -19,8 +19,8 @@ title,
 is_default,
 sku_status,
 IFNULL(CAST(price AS STRING), 'na') AS price,
-CONCAT_WS(' , ', COLLECT_LIST(sku_code)) AS skucode_mp,
-CONCAT_WS(' , ', COLLECT_LIST(display_name)) AS skuname_mp
+CONCAT_WS(' , ', COLLECT_LIST(DISTINCT sku_code)) AS skucode_mp,
+CONCAT_WS(' , ', COLLECT_LIST(DISTINCT display_name)) AS skuname_mp
 FROM (
 SELECT
 sp.*,
@@ -74,8 +74,8 @@ title,
 is_default,
 sku_status,
 IFNULL(CAST(price AS STRING), 'na') AS price,
-CONCAT_WS(' , ', COLLECT_LIST(sku_code)) AS skucode_mp,
-CONCAT_WS(' , ', COLLECT_LIST(display_name)) AS skuname_mp
+CONCAT_WS(' , ', COLLECT_LIST(DISTINCT sku_code)) AS skucode_mp,
+CONCAT_WS(' , ', COLLECT_LIST(DISTINCT display_name)) AS skuname_mp
 FROM isa_recipe_picklist_staticprices
 WHERE unique_recipe_code IN (
 SELECT DISTINCT uniquerecipecode
