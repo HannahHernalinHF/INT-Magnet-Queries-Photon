@@ -108,6 +108,6 @@ SELECT *
 FROM missing_static_price
 WHERE hellofresh_week BETWEEN '2023-W26' AND '2023-W39' --- update with the preferred weeks
 AND price = 'na'
-AND sku_status = 'Active';
+AND sku_status = 'Active'
 
 --- created by @Hannah Hernalin as of 7 JUL 2023
