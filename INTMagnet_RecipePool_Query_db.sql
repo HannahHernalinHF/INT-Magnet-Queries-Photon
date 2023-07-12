@@ -3,6 +3,11 @@
 
 -------------------- COSTS & SKU COSTS CTEs --------------------
 
+/*
+IMPORTANT NOTE: before running the query, update the HelloFresh weeks in the sku_cost_CPS and last_sku_cost_remps CTEs
+depending on the preferred weeks EX: If the data to extract is for Q2 of 2023 then update the weeks to '2023-W13' AND '2023-W26'
+*/
+
 WITH sku_cost_CPS AS (
     SELECT market
          , distribution_center
@@ -13,8 +18,8 @@ WITH sku_cost_CPS AS (
         ON sku.id=sp.culinary_sku_id
     WHERE  sku.market IN ('dkse','es','gb','ie','it','beneluxfr')
         AND sp.distribution_center IN ('SK','SP','GR','IE','IT','DH')
-        AND sp.hellofresh_week >= '2023-W27'
-        AND sp.hellofresh_week <= '2023-W39'
+        AND sp.hellofresh_week >= '2023-W28' --- update with the preferred start week
+        AND sp.hellofresh_week <= '2023-W39' --- update with the preferred end week
     GROUP BY 1,2,3
     )
 
@@ -25,7 +30,9 @@ WITH sku_cost_CPS AS (
         FROM materialized_views.procurement_services_staticprices AS sp
         LEFT JOIN materialized_views.procurement_services_culinarysku AS sku
             ON sku.id=sp.culinary_sku_id
-        WHERE  sku.market IN ('ca') AND sp.hellofresh_week>='2023-W27' AND sp.hellofresh_week<='2023-W39' --AND sp.distribution_center='OA'
+        WHERE  sku.market IN ('ca') --AND sp.distribution_center='OA'
+            AND sp.hellofresh_week>='2023-W28' --- update with the preferred start week
+            AND sp.hellofresh_week<='2023-W39' --- update with the preferred end week
         GROUP BY 1,2,3
     )
 
@@ -354,7 +361,7 @@ GROUP BY 1,2
             segment_name,
             unique_recipe_code,
             concat_ws(" | ", collect_list(skucode)) AS inactiveskus,
-            concat_ws(" | ", collect_list(skuname)) AS inactiveskuname,
+            concat_ws(" | ", collect_list(skuname)) AS inactiveskunames,
             count(skuname) AS inactiveskus_count
         FROM (
                 SELECT r.market
@@ -992,7 +999,7 @@ WHERE o=1)
             --, p.skucount
             , sc2p.skucount
             , i.inactiveskus
-            , i.inactiveskuname
+            , i.inactiveskunames
             , r.cost2p
             , r.cost4p
             , u.last_used AS lastused
@@ -1070,7 +1077,7 @@ SELECT r.id AS uuid
        --, p.skucount
        , sc2p.skucount
        , i.inactiveskus
-       , i.inactiveskuname
+       , i.inactiveskunames
        ,round(p.cost2p,2) AS cost2p
        ,round(p.cost4p,2) AS cost4p
      ,u.last_used AS lastused
@@ -1235,7 +1242,7 @@ WHERE LOWER(r.status) IN ('ready for menu planning','planned')
             , lower (p.skuname) AS skuname
             , sc2p.skucount
             , i.inactiveskus
-            , i.inactiveskuname
+            , i.inactiveskunames
             , round(p.cost2p, 2) AS cost2p
             , round(p.cost4p, 2) AS cost4p
             , u.last_used AS lastused
@@ -1321,7 +1328,7 @@ SELECT r.id AS uuid
        ,lower(p.skuname) AS skuname
        , sc2p.skucount
        , i.inactiveskus
-       , i.inactiveskuname
+       , i.inactiveskunames
        --,round(p.cost1p,2) AS cost1p
        ,round(p.cost2p,2) AS cost2p
        --,round(p.cost3p,2) AS cost3p
@@ -1398,7 +1405,7 @@ SELECT r.id AS uuid
        , p.skucount
        --, sc2p.skucount
        , i.inactiveskus
-       , i.inactiveskuname
+       , i.inactiveskunames
        ,round(p.cost2p,2) AS cost2p
        ,round(p.cost4p,2) AS cost4p
      ,u.last_used AS lastused
