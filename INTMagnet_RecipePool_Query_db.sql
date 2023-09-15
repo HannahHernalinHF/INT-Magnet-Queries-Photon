@@ -1,12 +1,11 @@
 ----- INT Magnet Recipe Pool Query -----
 
-
--------------------- COSTS & SKU COSTS CTEs --------------------
-
 /*
 IMPORTANT NOTE: before running the query, update the HelloFresh weeks in the sku_cost_CPS and last_sku_cost_remps CTEs
 depending on the preferred weeks EX: If the data to extract is for Q2 of 2023 then update the weeks to '2023-W13' AND '2023-W26'
 */
+
+-------------------- COSTS & SKU COSTS CTEs --------------------
 
 WITH sku_cost_CPS AS (
     SELECT market
@@ -18,8 +17,8 @@ WITH sku_cost_CPS AS (
         ON sku.id=sp.culinary_sku_id
     WHERE  sku.market IN ('dkse','es','gb','ie','it','beneluxfr')
         AND sp.distribution_center IN ('SK','SP','GR','IE','IT','DH')
-        AND sp.hellofresh_week >= '2023-W28' --- update with the preferred start week
-        AND sp.hellofresh_week <= '2023-W39' --- update with the preferred end week
+        AND sp.hellofresh_week >= '2023-W34'
+        AND sp.hellofresh_week <= '2023-W52'
     GROUP BY 1,2,3
     )
 
@@ -30,9 +29,7 @@ WITH sku_cost_CPS AS (
         FROM materialized_views.procurement_services_staticprices AS sp
         LEFT JOIN materialized_views.procurement_services_culinarysku AS sku
             ON sku.id=sp.culinary_sku_id
-        WHERE  sku.market IN ('ca') --AND sp.distribution_center='OA'
-            AND sp.hellofresh_week>='2023-W28' --- update with the preferred start week
-            AND sp.hellofresh_week<='2023-W39' --- update with the preferred end week
+        WHERE  sku.market IN ('ca') AND sp.hellofresh_week>='2023-W34' AND sp.hellofresh_week<='2023-W52' --AND sp.distribution_center='OA'
         GROUP BY 1,2,3
     )
 
@@ -132,8 +129,6 @@ WITH sku_cost_CPS AS (
 
 
 -------------------- REMPS CTEs --------------------
-
-
 
 
 , last_recipe_remps AS (
@@ -360,8 +355,8 @@ GROUP BY 1,2
         SELECT market,
             segment_name,
             unique_recipe_code,
-            concat_ws(" | ", collect_list(skucode)) AS inactiveskus,
-            concat_ws(" | ", collect_list(skuname)) AS inactiveskunames,
+            concat_ws(" | ", collect_list(distinct skucode)) AS inactiveskus,
+            concat_ws(" | ", collect_list(distinct skuname)) AS inactiveskunames,
             count(skuname) AS inactiveskus_count
         FROM (
                 SELECT r.market
@@ -378,7 +373,7 @@ GROUP BY 1,2
                     ON skus.id = p.culinarysku_id
                 WHERE r.market IN ('dkse','it','ie','gb','es')
                 AND p.segment_name IN ('SE', 'IT','IE','GR','ES')
-                AND skus.status LIKE  '%Inactive%' OR skus.status LIKE  '%Archived%'
+                AND (skus.status LIKE  '%Inactive%' OR skus.status LIKE  '%Archived%')
                 AND p.size = 2
                 GROUP BY 1, 2, 3, 4, 5, 6, 7
             ) t
@@ -390,8 +385,8 @@ GROUP BY 1,2
         SELECT market,
             segment_name,
             unique_recipe_code,
-            concat_ws(" | ", collect_list(skucode)) AS inactiveskus,
-            concat_ws(" | ", collect_list(skuname)) AS inactiveskusnames,
+            concat_ws(" | ", collect_list(distinct skucode)) AS inactiveskus,
+            concat_ws(" | ", collect_list(distinct skuname)) AS inactiveskusnames,
             count(skuname) AS inactiveskus_count
         FROM (
                 SELECT r.market
@@ -408,13 +403,12 @@ GROUP BY 1,2
                     ON p.code = skus.code AND skus.market = 'beneluxfr'
                 WHERE r.market = 'fr'
                 AND p.segment_name = 'FR'
-                AND skus.status LIKE '%Inactive%' OR skus.status LIKE '%Archived%'
+                AND (skus.status LIKE '%Inactive%' OR skus.status LIKE '%Archived%')
                 AND p.size = 2
                 GROUP BY 1, 2, 3, 4, 5, 6, 7
             ) t
         GROUP BY 1,2,3
         )
-
 
     , inactiveskus_remps AS (
     SELECT market,
@@ -435,7 +429,7 @@ GROUP BY 1,2
         ON ig.id = rs.recipe_sku__ingredient_group
         JOIN last_sku_remps sku
         ON sku.id = rs.recipe_sku__sku
-        WHERE  rs.quantity_to_order_2p>0 AND sku.status LIKE  '%Inactive%' OR sku.status LIKE  '%Archived%'
+        WHERE  rs.quantity_to_order_2p>0 AND (sku.status LIKE  '%Inactive%' OR sku.status LIKE  '%Archived%')
         GROUP BY 1,2,3,4,5) t
     GROUP BY 1,2
     )
@@ -645,13 +639,10 @@ GROUP BY 1,2
         JOIN materialized_views.culinary_services_recipe_procurement_picklist_culinarysku AS p ON r.id = p.recipe_id AND r.market = p.market
         JOIN materialized_views.procurement_services_culinarysku AS pk ON p.code = pk.code AND p.market = pk.market
         LEFT JOIN (SELECT * FROM sku_cost_CPS WHERE market='gb' AND distribution_center = 'GR') AS c ON c.code = p.code
-        WHERE r.market = 'gb' AND p.segment_name = 'GR'
+        WHERE r.market = 'gb' AND p.segment_name = 'GR' AND p.size = 2
         GROUP BY 1,2,3) t
     GROUP BY 1
 )
-
-
-
 
 , picklists_IE AS (
     SELECT market
@@ -1356,6 +1347,7 @@ LEFT JOIN (SELECT * FROM steps_CPS WHERE market='ie') AS steps ON steps.recipe_i
 LEFT JOIN allergens AS a ON r.unique_recipe_code=a.unique_recipe_code
 WHERE lower(r.status) IN ('ready for menu planning', 'in development')
     AND  r.market='ie'
+    AND lower(title) NOT LIKE '%test%'
     AND p.cost2p >0
     AND p.cost4p >0
 ) temp
@@ -1438,6 +1430,7 @@ WHERE isdefault = 1
 )
 
 
+
 , int_recipepool AS (SELECT DISTINCT * FROM all_recipes_CA
                       UNION ALL
                       SELECT DISTINCT * FROM all_recipes_DACH
@@ -1452,11 +1445,101 @@ WHERE isdefault = 1
                       UNION ALL
                       SELECT DISTINCT * FROM all_recipes_IE
                       UNION ALL
-                      SELECT DISTINCT * FROM all_recipes_IT)
+                      SELECT DISTINCT * FROM all_recipes_IT
+)
 
-SELECT * FROM int_recipepool
 
+   ----- Primary Vegetable Error (primary-veg)  -----
+
+
+, primaryveg_error AS (
+                SELECT DISTINCT country, uniquerecipecode,
+                CASE
+                    WHEN skuname LIKE CONCAT("%", lower(mainvegetable), "%") THEN "N"
+                    ELSE "Y" END AS primaryveg_error
+   FROM int_recipepool
+   WHERE
+       (LOWER(primaryvegetable) LIKE "%tomato%" AND skuname NOT LIKE "%tomato%")
+       AND country NOT IN ('FR','DACH')
+   )
+
+
+
+----- Primary Starch Error (primary-sta)  -----
+
+, primarysta_error AS (
+                SELECT DISTINCT country, uniquerecipecode,
+                CASE
+                    WHEN skuname LIKE CONCAT("%", lower(mainstarch), "%") THEN "N"
+                    WHEN skuname LIKE CONCAT("%", RIGHT(lower(primarystarch), 6), "%") THEN "N"
+                    WHEN skuname LIKE CONCAT("%", RIGHT(lower(primarystarch), 4), "%") THEN "N"
+                    WHEN skuname LIKE CONCAT("%", RIGHT(lower(REPLACE(SPLIT_PART(primarystarch, '-', 1), ' ', '')), 6), "%") THEN "N"
+                    WHEN skuname LIKE CONCAT("%", RIGHT(lower(REPLACE(SPLIT_PART(primarystarch, '-', 2), ' ', '')), 6), "%") THEN "N"
+                    WHEN skuname LIKE CONCAT("%", LEFT(lower(REPLACE(SPLIT_PART(primarystarch, '-', 2), ' ', '')), 6), "%") THEN "N"
+                    WHEN skuname LIKE CONCAT("%", LEFT(lower(mainstarch), 6), "%") THEN "N"
+                    WHEN skuname LIKE CONCAT("%",TRIM(SPLIT_PART(SPLIT_PART(LOWER(primarystarch), ' - ', 2), ' ', 1)), "%") THEN "N"
+                    ELSE "Y" END AS primarysta_error
+   FROM int_recipepool
+   WHERE LOWER(primarystarch) NOT LIKE  "%no starch%"
+       AND LOWER(primarystarch)<>"none"
+       AND LOWER(primarystarch)<>"not available"
+       AND LOWER(primarystarch)<>"grains - none"
+       AND (LOWER(primarystarch)<>"bread - flatbread" AND skuname NOT LIKE "%naan%")
+       AND (LOWER(primarystarch)<>"bread - none" AND skuname NOT LIKE "%ciabat%")
+       AND uniquerecipecode NOT LIKE "%MOD%"
+       AND country NOT IN ('FR','DACH')
+   )
+
+
+, primaryptn_error AS (
+                SELECT DISTINCT country, uniquerecipecode,
+                CASE WHEN skuname LIKE CONCAT("%",lower(proteincut),"%")
+                    THEN "N"
+                    WHEN skuname LIKE CONCAT("%",lower(mainprotein),"%")
+                    THEN "N"
+                    WHEN skuname LIKE CONCAT("%",left(lower(proteincut),6),"%")
+                    THEN "N"
+                    WHEN LOWER(proteincut) LIKE "%steak%" AND (skuname LIKE "%steak%" OR skuname LIKE "%lomo bajo%")
+                    THEN "N"
+                    WHEN LOWER(mainprotein) LIKE "%beef and pork%" AND (skuname LIKE "%pork%" OR skuname LIKE "%beef%")
+                    THEN "N"
+                    WHEN LOWER(proteincut) LIKE "%loin%" AND (skuname LIKE "%loin%" OR skuname LIKE "%lomo bajo%")
+                    THEN "N"
+                    WHEN LOWER(proteincut) LIKE "%shrimp%" AND (skuname LIKE "%prawn%" OR skuname LIKE "%shrimp%")
+                    THEN "N"
+                    WHEN LOWER(proteincut) LIKE "%lentil%" AND skuname LIKE "%lentil%"
+                    THEN "N"
+                    WHEN LOWER(proteincut) LIKE "%ham%" AND skuname LIKE "%ham%"
+                    THEN "N"
+                    WHEN LOWER(proteincut) LIKE "%prosciutto%" AND skuname LIKE "%nduja%"
+                    THEN "N"
+                    WHEN LOWER(proteincut) LIKE "%bean%" AND skuname LIKE "%bean%"
+                    THEN "N"
+                    WHEN LOWER(primaryprotein) IS NULL
+                    THEN "Y"
+                    WHEN LOWER(primaryprotein) = 'not available'
+                    THEN "Y"
+                    ELSE "Y" END AS primaryptn_error
+   FROM int_recipepool
+   WHERE LOWER(primaryprotein) NOT LIKE  "%veggie%"
+       AND LOWER(primaryprotein)<>"none"
+       AND LOWER(primaryprotein)<>"not available"
+       AND country NOT IN ('FR','DACH')
+   )
+
+
+SELECT i.*,p.primaryptn_error, s.primarysta_error,v.primaryveg_error
+FROM int_recipepool AS i
+LEFT JOIN primaryptn_error AS p
+    ON i.country=p.country
+    AND i.uniquerecipecode=p.uniquerecipecode
+LEFT JOIN primarysta_error AS s
+    ON i.country=s.country
+    AND i.uniquerecipecode=s.uniquerecipecode
+LEFT JOIN primaryveg_error AS v
+     ON i.country=v.country
+    AND i.uniquerecipecode=v.uniquerecipecode
 
 
 ---FROM original queries by GAMP AND with modifications/additions made by @Hannah Hernalin----
---- Updated as of 7 JUL 2023 ---
+--- Updated as of 24 AUG 2023 ---
